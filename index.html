@@ -400,42 +400,50 @@
                     this.inputRaw = '';
                 },
 
-                // Lógica de cálculo estricta corregida contra solapamientos de tarde
+                // Lógica de cálculo corregida para medianoche y límites de tarde
                 calcularDietas(dia) {
                     if (!dia.entrada || !dia.salida || dia.servicio === 'Día LIBRE') return { comida: false, cena: false };
                     
                     const [hEnt, mEnt] = dia.entrada.split(':').map(Number);
                     const [hSal, mSal] = dia.salida.split(':').map(Number);
                     
-                    const totalMinutos = (hSal * 60 + mSal) - (hEnt * 60 + mEnt);
-                    const totalHoras = totalMinutos / 60;
+                    const entradaEnMinutos = hEnt * 60 + mEnt;
+                    let salidaEnMinutos = hSal * 60 + mSal;
+                    
+                    // Si la hora de salida es menor que la de entrada, el turno ha cruzado la medianoche (ej: 00:30)
+                    if (salidaEnMinutos < entradaEnMinutos) {
+                        salidaEnMinutos += 24 * 60;
+                    }
+
+                    const totalHoras = (salidaEnMinutos - entradaEnMinutos) / 60;
 
                     let comida = false;
                     let cena = false;
+
+                    const min1500 = 15 * 60;
+                    const min1530 = 15 * 60 + 30;
+                    const min2300 = 23 * 60;
 
                     const esSalida1500Punto = (hSal === 15 && mSal === 0);
                     const esSalida1530Punto = (hSal === 15 && mSal === 30);
                     const esSalida2300Punto = (hSal === 23 && mSal === 0);
 
-                    // 1. Reglas para la COMIDA (Solo turnos que empiecen estrictamente antes de las 13:00)
-                    if (hEnt < 13) {
-                        // Caso 1: Trabajar 9 horas o más y terminar a las 15:00 o después
-                        if (totalHoras >= 9 && hSal >= 15) {
+                    // 1. REGLAS PARA LA COMIDA (Turnos de Mañana)
+                    if (hEnt < 13 && hSal <= 17 && hSal >= 15) {
+                        if (totalHoras >= 9 && salidaEnMinutos >= min1500) {
                             comida = true;
                         } 
-                        // Caso 2: Trabajar 6 horas o más y terminar a las 15:30 o después
-                        else if (totalHoras >= 6 && (hSal > 15 || (hSal === 15 && mSal >= 30))) {
-                            comida = true;
-                        }
-                        // Excepciones de horas exactas en punto de mañana
-                        if (esSalida1500Punto || esSalida1530Punto) {
+                        else if (totalHoras >= 6 && salidaEnMinutos >= min1530) {
                             comida = true;
                         }
                     }
+                    if (hEnt < 13 && (esSalida1500Punto || esSalida1530Punto)) {
+                        comida = true;
+                    }
 
-                    // 2. Reglas para la CENA (Turnos de Tarde/Noche que empiecen a partir de las 13:00)
+                    // 2. REGLAS PARA LA CENA (Turnos de Tarde/Noche)
                     if (hEnt >= 13) {
-                        if (hSal >= 23 || esSalida2300Punto) {
+                        if (salidaEnMinutos >= min2300 || esSalida2300Punto) {
                             cena = true;
                         }
                     }
